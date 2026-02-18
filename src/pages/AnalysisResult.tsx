@@ -7,7 +7,7 @@ import ScoreCircle from "@/components/ScoreCircle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowLeft, Copy, Check, TrendingUp, AlertTriangle, Lightbulb, BookOpen, Target, Info } from "lucide-react";
+import { ArrowLeft, Copy, Check, TrendingUp, AlertTriangle, Lightbulb, BookOpen, Target, Info, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface AnalysisData {
@@ -312,6 +312,29 @@ const AnalysisResult = () => {
               </Card>
             </motion.div>
           )}
+
+          {/* Edit Resume Button */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}>
+            <Button
+              size="lg"
+              className="w-full gradient-primary text-primary-foreground text-base shadow-glow"
+              onClick={() => {
+                const st = location.state as any;
+                navigate("/editor", {
+                  state: {
+                    analysis,
+                    resumeText: st?.resumeText || "",
+                    inputMode: st?.inputMode || "role",
+                    jobDescription: st?.jobDescription,
+                    roleQuery: st?.roleQuery,
+                  },
+                });
+              }}
+            >
+              <Pencil className="mr-2 h-5 w-5" />
+              Edit Resume & Improve Score
+            </Button>
+          </motion.div>
         </div>
       </main>
     </div>

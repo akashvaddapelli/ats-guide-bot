@@ -73,6 +73,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         analysisId,
         result: analysisResult,
+        resumeText,
         saved: !!userId,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

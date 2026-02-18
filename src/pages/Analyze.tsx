@@ -60,11 +60,13 @@ const Analyze = () => {
       if (error) throw error;
 
       if (data.analysisId) {
-        // Logged-in user — navigate to saved analysis
-        navigate(`/analysis/${data.analysisId}`);
+        navigate(`/analysis/${data.analysisId}`, {
+          state: { result: data.result, resumeText: data.resumeText, inputMode, jobDescription, roleQuery },
+        });
       } else {
-        // Guest — navigate with result in state
-        navigate("/analysis/guest", { state: { result: data.result } });
+        navigate("/analysis/guest", {
+          state: { result: data.result, resumeText: data.resumeText, inputMode, jobDescription, roleQuery },
+        });
       }
     } catch (err: any) {
       toast({
