@@ -1,10 +1,23 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://esm.sh/zod@3.25.76";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const requestSchema = z.object({
+  fileBase64: z.string().min(1, "File is required").max(10 * 1024 * 1024, "File too large (max ~7.5MB)"),
+  fileName: z.string().min(1).max(255).regex(/^[a-zA-Z0-9 ._()-]+$/, "Invalid file name"),
+  fileType: z.string().refine(
+    (val) => ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain", "image/png", "image/jpeg"].includes(val),
+    "Unsupported file type"
+  ),
+  inputMode: z.enum(["jd", "role"]),
+  jobDescription: z.string().max(20000, "Job description too long").optional(),
+  roleQuery: z.string().max(500, "Role query too long").optional(),
+});
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -27,9 +40,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { fileBase64, fileName, fileType, inputMode, jobDescription, roleQuery } = await req.json();
+    // Validate inputs
+    const rawBody = await req.json();
+    const parseResult = requestSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return new Response(
+        JSON.stringify({ error: "Invalid input", details: parseResult.error.issues.map(i => i.message) }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    if (!fileBase64 || !fileName) throw new Error("No file provided");
+    const { fileBase64, fileName, fileType, inputMode, jobDescription, roleQuery } = parseResult.data;
 
     // Extract text from resume
     const resumeText = await extractResumeText(fileBase64, fileName, fileType);
