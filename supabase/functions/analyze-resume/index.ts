@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
@@ -12,60 +12,69 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Not authenticated");
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get user from auth header
-    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
-    const { data: { user }, error: authError } = await anonClient.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
-    if (authError || !user) throw new Error("Invalid authentication");
+    // Auth is optional - check if user is logged in
+    let userId: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
+      const { data, error } = await anonClient.auth.getClaims(authHeader.replace("Bearer ", ""));
+      if (!error && data?.claims?.sub) {
+        userId = data.claims.sub as string;
+      }
+    }
 
     const { fileBase64, fileName, fileType, inputMode, jobDescription, roleQuery } = await req.json();
 
     if (!fileBase64 || !fileName) throw new Error("No file provided");
 
-    // Extract text from resume (send to AI for extraction)
+    // Extract text from resume
     const resumeText = await extractResumeText(fileBase64, fileName, fileType);
-
-    // Save resume
-    const { data: resume } = await supabase
-      .from("resumes")
-      .insert({ user_id: user.id, file_name: fileName, parsed_text: resumeText })
-      .select("id")
-      .single();
 
     // Analyze with AI
     const analysisResult = await analyzeWithAI(resumeText, inputMode, jobDescription, roleQuery);
 
-    // Save analysis
-    const { data: analysis } = await supabase
-      .from("analyses")
-      .insert({
-        user_id: user.id,
-        resume_id: resume?.id,
-        input_mode: inputMode,
-        role_detected: analysisResult.role_detected,
-        experience_level: analysisResult.experience_level,
-        ats_score: analysisResult.ats_score,
-        score_label: analysisResult.score_label,
-        missing_skills: analysisResult.missing_skills,
-        suggestions: analysisResult.suggestions,
-        improvements: analysisResult.improvements,
-        skill_roadmap: analysisResult.skill_roadmap,
-        predicted_score: analysisResult.predicted_score,
-        explanation: analysisResult.explanation,
-      })
-      .select("id")
-      .single();
+    // If user is logged in, save to database
+    let analysisId: string | null = null;
+    if (userId) {
+      const { data: resume } = await supabase
+        .from("resumes")
+        .insert({ user_id: userId, file_name: fileName, parsed_text: resumeText })
+        .select("id")
+        .single();
+
+      const { data: analysis } = await supabase
+        .from("analyses")
+        .insert({
+          user_id: userId,
+          resume_id: resume?.id,
+          input_mode: inputMode,
+          role_detected: analysisResult.role_detected,
+          experience_level: analysisResult.experience_level,
+          ats_score: analysisResult.ats_score,
+          score_label: analysisResult.score_label,
+          missing_skills: analysisResult.missing_skills,
+          suggestions: analysisResult.suggestions,
+          improvements: analysisResult.improvements,
+          skill_roadmap: analysisResult.skill_roadmap,
+          predicted_score: analysisResult.predicted_score,
+          explanation: analysisResult.explanation,
+        })
+        .select("id")
+        .single();
+
+      analysisId = analysis?.id ?? null;
+    }
 
     return new Response(
-      JSON.stringify({ analysisId: analysis?.id }),
+      JSON.stringify({
+        analysisId,
+        result: analysisResult,
+        saved: !!userId,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
@@ -203,7 +212,6 @@ Rules:
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content || "{}";
 
-  // Parse JSON from response (handle potential markdown code blocks)
   const jsonStr = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
   try {
     return JSON.parse(jsonStr);

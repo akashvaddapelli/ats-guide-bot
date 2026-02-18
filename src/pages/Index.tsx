@@ -74,7 +74,7 @@ const Index = () => {
               <Button
                 size="lg"
                 className="gradient-primary text-primary-foreground px-8 text-base shadow-glow"
-                onClick={() => navigate(user ? "/analyze" : "/auth?mode=register")}
+                onClick={() => navigate("/analyze")}
               >
                 Analyze Your Resume
                 <ArrowRight className="ml-2 h-5 w-5" />
