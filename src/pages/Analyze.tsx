@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,11 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Analyze = () => {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
@@ -21,10 +21,6 @@ const Analyze = () => {
   const [jobDescription, setJobDescription] = useState("");
   const [roleQuery, setRoleQuery] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
-
-  useEffect(() => {
-    if (!loading && !user) navigate("/auth");
-  }, [user, loading, navigate]);
 
   const handleAnalyze = async () => {
     if (!file) {
@@ -43,7 +39,6 @@ const Analyze = () => {
     setAnalyzing(true);
 
     try {
-      // Read file as base64
       const reader = new FileReader();
       const fileBase64 = await new Promise<string>((resolve, reject) => {
         reader.onload = () => resolve((reader.result as string).split(",")[1]);
@@ -64,7 +59,13 @@ const Analyze = () => {
 
       if (error) throw error;
 
-      navigate(`/analysis/${data.analysisId}`);
+      if (data.analysisId) {
+        // Logged-in user — navigate to saved analysis
+        navigate(`/analysis/${data.analysisId}`);
+      } else {
+        // Guest — navigate with result in state
+        navigate("/analysis/guest", { state: { result: data.result } });
+      }
     } catch (err: any) {
       toast({
         title: "Analysis failed",
@@ -75,8 +76,6 @@ const Analyze = () => {
       setAnalyzing(false);
     }
   };
-
-  if (loading) return null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -89,8 +88,23 @@ const Analyze = () => {
           </p>
         </div>
 
+        {!user && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-primary/20 bg-accent/50 p-4">
+            <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
+            <div className="text-sm text-muted-foreground">
+              You're using SmartATS as a guest. Your results won't be saved.{" "}
+              <button
+                className="font-medium text-primary underline-offset-4 hover:underline"
+                onClick={() => navigate("/auth?mode=register")}
+              >
+                Sign up
+              </button>{" "}
+              to save your analyses and track progress.
+            </div>
+          </div>
+        )}
+
         <div className="space-y-8">
-          {/* Step 1: Upload */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Step 1 — Upload Resume</CardTitle>
@@ -100,7 +114,6 @@ const Analyze = () => {
             </CardContent>
           </Card>
 
-          {/* Step 2: Input Mode */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Step 2 — What are you targeting?</CardTitle>
@@ -142,7 +155,6 @@ const Analyze = () => {
             </CardContent>
           </Card>
 
-          {/* Analyze Button */}
           <Button
             size="lg"
             className="w-full gradient-primary text-primary-foreground text-base shadow-glow"

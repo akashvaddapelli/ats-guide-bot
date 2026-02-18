@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
@@ -7,11 +7,10 @@ import ScoreCircle from "@/components/ScoreCircle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowLeft, Copy, Check, TrendingUp, AlertTriangle, Lightbulb, BookOpen, Target } from "lucide-react";
+import { ArrowLeft, Copy, Check, TrendingUp, AlertTriangle, Lightbulb, BookOpen, Target, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface AnalysisData {
-  id: string;
   role_detected: string | null;
   experience_level: string | null;
   ats_score: number;
@@ -22,24 +21,47 @@ interface AnalysisData {
   improvements: Array<{ before: string; after: string }>;
   skill_roadmap: string[];
   predicted_score: number | null;
-  created_at: string;
 }
 
 const AnalysisResult = () => {
   const { id } = useParams();
+  const location = useLocation();
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [copied, setCopied] = useState<number | null>(null);
+  const isGuest = id === "guest";
 
   useEffect(() => {
-    if (!loading && !user) navigate("/auth");
-  }, [user, loading, navigate]);
+    if (isGuest) {
+      const guestResult = (location.state as any)?.result;
+      if (guestResult) {
+        setAnalysis({
+          role_detected: guestResult.role_detected || null,
+          experience_level: guestResult.experience_level || null,
+          ats_score: guestResult.ats_score ?? 0,
+          score_label: guestResult.score_label || "Needs Improvement",
+          explanation: guestResult.explanation || null,
+          missing_skills: guestResult.missing_skills || {},
+          suggestions: guestResult.suggestions || [],
+          improvements: guestResult.improvements || [],
+          skill_roadmap: guestResult.skill_roadmap || [],
+          predicted_score: guestResult.predicted_score ?? null,
+        });
+      } else {
+        navigate("/analyze");
+      }
+      return;
+    }
 
-  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth");
+      return;
+    }
+
     if (!user || !id) return;
-    const fetch = async () => {
+    const fetchAnalysis = async () => {
       const { data } = await supabase
         .from("analyses")
         .select("*")
@@ -47,16 +69,21 @@ const AnalysisResult = () => {
         .single();
       if (data) {
         setAnalysis({
-          ...data,
+          role_detected: data.role_detected,
+          experience_level: data.experience_level,
+          ats_score: data.ats_score,
+          score_label: data.score_label,
+          explanation: data.explanation,
           missing_skills: (data.missing_skills as Record<string, string[]>) || {},
           suggestions: (data.suggestions as string[]) || [],
           improvements: (data.improvements as Array<{ before: string; after: string }>) || [],
           skill_roadmap: (data.skill_roadmap as string[]) || [],
+          predicted_score: data.predicted_score,
         });
       }
     };
-    fetch();
-  }, [user, id]);
+    fetchAnalysis();
+  }, [user, id, loading, isGuest, location.state, navigate]);
 
   const copyText = (text: string, index: number) => {
     navigator.clipboard.writeText(text);
@@ -84,10 +111,26 @@ const AnalysisResult = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container mx-auto max-w-4xl px-4 py-10">
-        <Button variant="ghost" onClick={() => navigate("/dashboard")} className="mb-6">
+        <Button variant="ghost" onClick={() => navigate(isGuest ? "/analyze" : "/dashboard")} className="mb-6">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Dashboard
+          {isGuest ? "Back to Analyzer" : "Back to Dashboard"}
         </Button>
+
+        {isGuest && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-primary/20 bg-accent/50 p-4">
+            <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
+            <div className="text-sm text-muted-foreground">
+              This result is not saved.{" "}
+              <button
+                className="font-medium text-primary underline-offset-4 hover:underline"
+                onClick={() => navigate("/auth?mode=register")}
+              >
+                Create an account
+              </button>{" "}
+              to save and track your analyses over time.
+            </div>
+          </div>
+        )}
 
         {/* Header */}
         <motion.div
@@ -112,7 +155,6 @@ const AnalysisResult = () => {
         </motion.div>
 
         <div className="space-y-6">
-          {/* Why Your Score */}
           {analysis.explanation && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <Card>
@@ -129,7 +171,6 @@ const AnalysisResult = () => {
             </motion.div>
           )}
 
-          {/* Missing Skills */}
           {skillCategories.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
               <Card>
@@ -164,7 +205,6 @@ const AnalysisResult = () => {
             </motion.div>
           )}
 
-          {/* Suggestions */}
           {analysis.suggestions.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
               <Card>
@@ -188,7 +228,6 @@ const AnalysisResult = () => {
             </motion.div>
           )}
 
-          {/* Improvements */}
           {analysis.improvements.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
               <Card>
@@ -229,7 +268,6 @@ const AnalysisResult = () => {
             </motion.div>
           )}
 
-          {/* Skill Roadmap */}
           {analysis.skill_roadmap.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
               <Card>
@@ -255,7 +293,6 @@ const AnalysisResult = () => {
             </motion.div>
           )}
 
-          {/* Predicted Score */}
           {analysis.predicted_score && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
               <Card className="border-primary/20 bg-accent/50">

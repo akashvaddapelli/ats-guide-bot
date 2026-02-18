@@ -39,6 +39,9 @@ const Navbar = () => {
             </>
           ) : (
             <>
+              <Button variant="ghost" size="sm" onClick={() => navigate("/analyze")}>
+                Analyze
+              </Button>
               <Button variant="ghost" size="sm" onClick={() => navigate("/auth")}>
                 Sign In
               </Button>
