@@ -30,13 +30,16 @@ const AnalysisResult = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
+  const [resumeText, setResumeText] = useState<string>("");
   const [copied, setCopied] = useState<number | null>(null);
   const isGuest = id === "guest";
 
   useEffect(() => {
     if (isGuest) {
       const guestResult = (location.state as any)?.result;
+      const guestText = (location.state as any)?.resumeText || "";
       if (guestResult) {
+        setResumeText(guestText);
         setAnalysis({
           role_detected: guestResult.role_detected || null,
           experience_level: guestResult.experience_level || null,
@@ -61,13 +64,19 @@ const AnalysisResult = () => {
     }
 
     if (!user || !id) return;
+    const stateText = (location.state as any)?.resumeText || "";
+    if (stateText) setResumeText(stateText);
+
     const fetchAnalysis = async () => {
       const { data } = await supabase
         .from("analyses")
-        .select("*")
+        .select("*, resumes(parsed_text)")
         .eq("id", id)
         .single();
       if (data) {
+        if (!stateText && (data as any).resumes?.parsed_text) {
+          setResumeText((data as any).resumes.parsed_text);
+        }
         setAnalysis({
           role_detected: data.role_detected,
           experience_level: data.experience_level,
@@ -323,7 +332,7 @@ const AnalysisResult = () => {
                 navigate("/editor", {
                   state: {
                     analysis,
-                    resumeText: st?.resumeText || "",
+                    resumeText: resumeText || st?.resumeText || "",
                     inputMode: st?.inputMode || "role",
                     jobDescription: st?.jobDescription,
                     roleQuery: st?.roleQuery,
