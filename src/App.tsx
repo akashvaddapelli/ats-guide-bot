@@ -9,7 +9,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Analyze from "./pages/Analyze";
 import AnalysisResult from "./pages/AnalysisResult";
-import ResumeEditor from "./pages/ResumeEditor";
+
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
