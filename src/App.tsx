@@ -27,7 +27,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/analyze" element={<Analyze />} />
             <Route path="/analysis/:id" element={<AnalysisResult />} />
-            <Route path="/editor" element={<ResumeEditor />} />
+            
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
